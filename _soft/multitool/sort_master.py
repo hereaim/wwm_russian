@@ -2,7 +2,8 @@ import csv
 import os
 import re
 import sys
-from typing import List, Tuple
+from typing import List, Tuple, Dict
+from collections import defaultdict
 
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtGui import QTextCursor
@@ -155,6 +156,68 @@ def build_source_index(
     return index, matched
 
 
+# --- Функции для сортировки по переводам ---
+def detect_language(text: str) -> int:
+    """
+    Определяет язык текста и возвращает приоритет для сортировки:
+    0 - кириллица (русский)
+    1 - английский
+    2 - китайский
+    3 - другой/неопределенный
+    """
+    if not text or not text.strip():
+        return 3
+    
+    # Проверка на кириллицу
+    if re.search(r'[А-Яа-яЁё]', text):
+        return 0
+    
+    # Проверка на китайские иероглифы (CJK)
+    if re.search(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]', text):
+        return 2
+    
+    # Проверка на английский (латиница)
+    if re.search(r'[A-Za-z]', text):
+        return 1
+    
+    return 3
+
+
+def sort_by_translations(
+    rows: List[List[str]],
+    text_idx: int,
+    id_idx: int,
+) -> List[List[str]]:
+    """
+    Сортирует строки по переводам:
+    1. Сначала кириллица, потом English, потом китайский
+    2. Группирует дубли на одном языке рядом (одинаковый текст на одном языке будет рядом)
+    3. НЕ удаляет дубли, сохраняет все строки
+    
+    Возвращает отсортированные строки (все дубли сохранены, но сгруппированы).
+    """
+    # Создаем список с ключами сортировки для каждой строки
+    # Ключ: (приоритет языка, текст в нижнем регистре, ID)
+    # Это автоматически сгруппирует дубли рядом (одинаковый язык и текст)
+    prepared = []
+    
+    for row in rows:
+        text = row[text_idx] if len(row) > text_idx else ""
+        rid = row[id_idx] if len(row) > id_idx else ""
+        language_priority = detect_language(text)
+        text_lower = text.lower().strip()
+        
+        # Ключ сортировки: сначала язык, потом текст, потом ID для стабильности
+        key = (language_priority, text_lower, rid)
+        prepared.append((key, row))
+    
+    # Сортируем по ключу
+    prepared.sort(key=lambda x: x[0])
+    
+    # Возвращаем отсортированные строки (все дубли сохранены)
+    return [row for _, row in prepared]
+
+
 # --- GUI ---
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -220,8 +283,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_full_sort.clicked.connect(self.handle_full_sort)
         self.btn_filter_sort = QtWidgets.QPushButton("2. Вырезать только по словам из sort.txt")
         self.btn_filter_sort.clicked.connect(self.handle_filter_sort)
+        self.btn_sort_translations = QtWidgets.QPushButton("3. Отсортировать по переводам")
+        self.btn_sort_translations.clicked.connect(self.handle_sort_translations)
         btn_layout.addWidget(self.btn_full_sort)
         btn_layout.addWidget(self.btn_filter_sort)
+        btn_layout.addWidget(self.btn_sort_translations)
         layout.addLayout(btn_layout)
 
         # Лог
@@ -318,6 +384,45 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def handle_filter_sort(self):
         self.run_sort(filter_only=True)
+
+    def handle_sort_translations(self):
+        """Обработчик сортировки по переводам."""
+        try:
+            # Используем целевой файл для сортировки
+            dst = self.get_path_by_key(self.combo_target.currentData())
+            
+            if not dst:
+                raise ValueError("Не выбран целевой TSV (A или B).")
+            if not os.path.isfile(dst):
+                raise FileNotFoundError(f"Целевой TSV не найден: {dst}")
+            
+            # Загружаем файл
+            header, rows = load_tsv(dst)
+            if not rows:
+                QtWidgets.QMessageBox.information(self, "Сортировка", "Файл пуст или без данных.")
+                return
+            
+            id_idx = find_column_index(header, "ID", 0)
+            text_idx = find_column_index(header, "OriginalText", 1 if len(header) > 1 else 0)
+            
+            # Сортируем по переводам
+            sorted_rows = sort_by_translations(rows, text_idx, id_idx)
+            
+            # Сохраняем результат
+            out_path = self.make_output_path(dst)
+            save_tsv(out_path, header, sorted_rows)
+            
+            msg = (
+                f"Готово. Файл: {os.path.basename(dst)}. "
+                f"Всего строк: {len(rows)}, отсортировано: {len(sorted_rows)}. "
+                f"Дубли сгруппированы по языкам (кириллица → английский → китайский). "
+                f"Итоговый файл: {out_path}"
+            )
+            self.append_log(msg)
+            QtWidgets.QMessageBox.information(self, "Сортировка по переводам", msg)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Ошибка", str(e))
+            self.append_log(f"Ошибка: {e}")
 
     def run_sort(self, filter_only: bool):
         try:
