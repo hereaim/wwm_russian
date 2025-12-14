@@ -48,5 +48,6 @@ ENV/
 sort.txt
 select_translation_*.tsv
 *_sort.tsv
+*_sorted.tsv
 *_debug.tsv
 debug_*.tsv
