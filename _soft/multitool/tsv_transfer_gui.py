@@ -378,20 +378,90 @@ class MainWindow(QtWidgets.QMainWindow):
             self.append_log(f"Ошибка переноса: {e}")
 
     def handle_remove_dups(self):
+        """
+        Поиск дублей по ID в B с последующим предложением удалить их.
+        1) Сначала ищет все ID, у которых больше одной строки, и выводит их в лог.
+        2) Затем предлагает автоматически удалить лишние дубликаты
+           (оставляя по одной строке на ID, с приоритетом строк с кириллицей —
+            логика та же, что и в remove_duplicates_in_b).
+        """
         path_b = self.edit_b.text().strip()
 
         if not path_b:
             QtWidgets.QMessageBox.warning(self, "Ошибка", "Укажите путь к файлу B.")
             return
+        if not os.path.isfile(path_b):
+            QtWidgets.QMessageBox.warning(self, "Ошибка", f"Файл B не найден: {path_b}")
+            return
 
         try:
+            header_b, rows_b = load_tsv(path_b)
+            if not rows_b:
+                msg = "Файл B пуст или без данных. Дубликатов нет."
+                QtWidgets.QMessageBox.information(self, "Дубликаты", msg)
+                self.append_log(msg)
+                return
+
+            id_idx = find_column_index(header_b, 'ID', 0)
+
+            # Подсчитываем количество строк на каждый ID
+            id_counts: dict[str, int] = {}
+            for row in rows_b:
+                if len(row) <= id_idx:
+                    row_id = ''
+                else:
+                    row_id = row[id_idx]
+                id_counts[row_id] = id_counts.get(row_id, 0) + 1
+
+            # ID, у которых больше одной строки
+            duplicate_ids = [rid for rid, cnt in id_counts.items() if cnt > 1]
+            total_dup_ids = len(duplicate_ids)
+            total_dup_rows = sum(cnt - 1 for cnt in id_counts.values() if cnt > 1)
+
+            if total_dup_ids == 0:
+                msg = "Дубликаты по ID в файле B не найдены."
+                QtWidgets.QMessageBox.information(self, "Дубликаты", msg)
+                self.append_log(msg)
+                return
+
+            msg_header = (
+                f"Найдено ID с дубликатами: {total_dup_ids}. "
+                f"Всего лишних строк (кроме первой на каждый ID): {total_dup_rows}."
+            )
+            self.append_log(msg_header)
+
+            # Выводим в лог список всех дублей
+            for rid in sorted(duplicate_ids):
+                self.append_log(f"ID (DUP): {rid!r} — всего строк: {id_counts[rid]}")
+
+            # Спрашиваем, нужно ли удалить лишние дубликаты автоматически
+            reply = QtWidgets.QMessageBox.question(
+                self,
+                "Дубликаты",
+                (
+                    f"{msg_header}\n\n"
+                    f"Удалить автоматически лишние дубликаты по ID?\n"
+                    f"Будет оставлена по одной строке на каждый ID, "
+                    f"с приоритетом строк с кириллицей (как в remove_duplicates_in_b)."
+                ),
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                QtWidgets.QMessageBox.No,
+            )
+
+            if reply != QtWidgets.QMessageBox.Yes:
+                cancel_msg = "Удаление дублей отменено пользователем. Ничего не изменено."
+                QtWidgets.QMessageBox.information(self, "Дубликаты", cancel_msg)
+                self.append_log(cancel_msg)
+                return
+
+            # Выполняем фактическое удаление дублей с использованием существующей логики
             removed = remove_duplicates_in_b(path_b)
             msg = f"Удаление дублей завершено. Удалено строк: {removed}."
             QtWidgets.QMessageBox.information(self, "Готово", msg)
             self.append_log(msg)
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Ошибка", str(e))
-            self.append_log(f"Ошибка удаления дублей: {e}")
+            self.append_log(f"Ошибка поиска/удаления дублей: {e}")
 
     def handle_replace_fields(self):
         """
