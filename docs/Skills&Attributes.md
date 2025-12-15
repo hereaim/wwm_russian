@@ -4,6 +4,18 @@
 
 ## Атрибуты
 
+- [会意率] : Affinity Rate : Шанс Пробоя
+  [直接会意率] : Direct Affinity Rate : Базовый шанс Пробоя
+  [会意率提] : Increases Affinity Rate : Повышает Шанс Пробоя
+  [会意伤害] : Affinity Damage: Урон пробоя
+- Critical Rate : Шанс крита
+- Physical DMG : физ. урона
+- Momentum : Импульс
+- All Attribute DMG: всем Атрибутам Урона (~)
+
+## Weapon
+* Dual-Weapon : Двойного Оружия
+
 ## Inner Way
 
 * [鸣金] : Bellstrike : Звона Метала
@@ -13,5 +25,5 @@
 
 ## Ключивые значения
 
-Inner Way : Внутренняя техника
-Mystic Skills: Мистические искусства
+* Inner Way : Внутренняя техника
+* Mystic Skills: Мистические искусства
