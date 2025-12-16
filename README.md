@@ -57,11 +57,11 @@
 ## 📚 Документация
 
 - **[`docs/AutoRussifier.md`](docs/AutoRussifier.md)** — Иструкция по использованию AutoRussifier;
-
 - **[`docs/tags.md`](docs/tags.md)** — описание тегов и форматирования, используемых в игре (ссылки, переменные, цветовое оформление);
-- **[`docs/localization.md`](docs/localization.md)** — правила перевода для **[`/translation_ru.tsv`](/translation_ru.tsv)**.
-- **[`docs/dictionary.md`](docs/dictionary.md)** — чтобы синхронизировать одни и те же имена.
+- **[`docs/localization.md`](docs/localization.md)** — правила перевода для **[`/translation_ru.tsv`](/translation_ru.tsv)**;
+- **[`docs/dictionary.md`](docs/dictionary.md)** — чтобы синхронизировать одни и те же имена;
 - **[`_soft/README.md`](_soft/README.md)** — документация по GUI-инструментам;
+- **[`docs/instruction_contribution.md`](docs/instruction_contribution.md)** — Инструкция по помощи в переводе на GitHub.
 
 ## 🔗 Ссылки
 
