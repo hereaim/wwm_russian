@@ -1,4 +1,4 @@
-![title image](images/title_image_cat.jpg)
+![title image](images/title_image_cat.gif)
 
 <div align="center">
 
@@ -11,7 +11,7 @@
 [![Boosty](https://img.shields.io/badge/Boosty%20-%20Boosty%20-%20Boosty?style=flat&logo=boosty&logoColor=orange&label=%D0%9F%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C%20%D0%BD%D0%B0&labelColor=white&color=orange&link=https%3A%2F%2Fboosty.to%2Fdog729)](https://boosty.to/dog729)
 [![Latest Version](https://img.shields.io/github/v/release/DOG729/wwm_russian?sort=date&display_name=tag&style=flat&logo=wikibooks&logoColor=FF4B00&label=%D0%9F%D0%BE%D1%81%D0%BB%D0%B5%D0%B4%D0%BD%D1%8F%D1%8F%20%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F&labelColor=white&color=FF4B00)](https://github.com/DOG729/wwm_russian/releases/latest)
 
-## ℹ️ О проекте
+## ℹ️ О ПРОЕКТЕ
 
 Это **неофициальная** русская локализация для MMO игры [Where Winds Meet](https://store.steampowered.com/app/3564740/Where_Winds_Meet/) от Everstone Studio и NetEase Games. Проект создан сообществом и не связан с официальными разработчиками игры.
 
@@ -44,12 +44,12 @@
 	- [**Boosty**](https://boosty.to/dog729/posts/190ba0c6-7192-443d-82f1-87d17474182b) из секции «Наша локализация:»
 	- [**GitHub Releases**](https://github.com/DOG729/wwm_russian/releases/latest)
 2. Открываете .zip архив;
-3. Копируете обе папки («LocalData» и «Package») в корневую папку игры с замной файлов;
+3. Копируете обе папки («LocalData» и «Package») в корневую папку игры с заменой файлов;
 4. Всё готово! Можете запускать игру! 
 
 ### Возможные ошибки:
 
-- Во многих местах отсутствует перевод на русский
+- Во многих местах отсутствует перевод на русский:
 	- **РЕШЕНИЕ:** Перейдите по ссылка на [**пост с Boosty**](https://boosty.to/dog729/posts/5dc26820-adf7-4f2d-931b-f8dea6bddf5c), в котором подробно расписано решение проблемы.
 
 ---
@@ -71,11 +71,13 @@
 - [Boosty](https://boosty.to/dog729/posts/190ba0c6-7192-443d-82f1-87d17474182b)
 - [Telegram Group](https://t.me/+ZV4ZpuGEdeFhNDRi)
 
+---
 
-## Дополнительная информация
+## 💙 Дополнительная информация
 
-### Сведения об участниках
+### 😃 Сведения об участниках
 
+* [DOG729](https://github.com/DOG729) — 🐶
 * [Dontaz](https://github.com/Dontaz) - Публикация, Редактирование публичных материалов, Продвижение, Постоянные гифки с котиками
 * [Claymore0098](https://github.com/Kirito0098) - Самый большой вклад по нейропереводу для черновика. 
 * [neewb20221](https://github.com/neewb20221)
@@ -90,6 +92,6 @@
 
 </div>
 
-### Дисклеймер
+### ⚠️ Дисклеймер
 
 Данный перевод является неофициальным и фанатским. Он создан исключительно в ознакомительных целях и распространяется бесплатно. Мы не преследуем коммерческих целей. Все права на игру принадлежат её компании-разработчику и издателю. Установка, использование или модификация файлов осуществляется пользователем добровольно, по собственной инициативе и под его личную ответственность. Авторы перевода не несут ответственности за возможные последствия, в том числе технические неполадки, некорректную работу программы или утрату данных. Используя данный материал, вы подтверждаете, что принимаете на себя все риски.
