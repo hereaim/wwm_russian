@@ -27,7 +27,11 @@
 ## Ключивые значения
 
 * Inner Way : Внутренняя техника
-* Mystic Skills: Мистические искусства
+* Mystic Skills : Мистические искусства
+* [天工] : Divinecraft : Небесное Мастерство
+  * [开物·火] : Divinecraft - Fire : Познание - Огня
+  * Divinecraft - Water : Познание - Воды
+  * Divinecraft - Poison : Познание - Яда
 
 ## Игры
 
