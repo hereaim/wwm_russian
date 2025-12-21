@@ -11,10 +11,11 @@
 - Critical Rate : Шанс крита
 - Physical DMG : физ. урона
 - Momentum : Импульс
-- All Attribute DMG: всем Атрибутам Урона (~)
+- All Attribute DMG: все Атрибуты Урона (~)
 
 ## Weapon
-* Dual-Weapon : Двойного Оружия
+
+* Dual-Weapon : Двойное оружие
 
 ## Inner Way
 
@@ -27,3 +28,8 @@
 
 * Inner Way : Внутренняя техника
 * Mystic Skills: Мистические искусства
+
+## Игры
+
+* [投壶雅戏] : Pitch Pot : Тоуху
+* [叶子戏] : Madiao Cards : Мадяо
