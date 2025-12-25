@@ -1,6 +1,6 @@
-![title image](images/title_image_cat.gif)
-
 <div align="center">
+
+![title image](images/title_image_cat.gif)
 
 # Русификатор для игры «Where Winds Meet»
 
