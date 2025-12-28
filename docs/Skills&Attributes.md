@@ -11,18 +11,18 @@
 
 ## Martial Arts : Боевые искусства 
 
-* [粟子游尘] : Mortal Rope Dart : «Пыли и Зерна»
-* [泥犁三垢] : Infernal Twinblades : «Три Греха, Ада»
-* [明川药典] : Panacea Fan : «Ясная Река»
-* [千香引魂蛊] : Soulshade Umbrella : «Гу, Притягивающая души»
-* [无名剑] : Nameless Sword : «Безымянный меч»
-* [嗟夫刀法] : Thundercry Blade : «Плачущий клинок»
-* [八方风雷枪] : Srormbreaker Spear : «Копьё Ветра и Грома»
-* [积矩九剑] : Strategic Sword : «Девять Мечей»
-* [无名枪法] : Nameless Spear :  «Безымянное копье»
-* [九曲惊神枪] : Heavenquaker Spear : «Копьё Девяти Поворотов»
-* [九重春色] : Vernal Umbrella : «Весенний зонт»
-* [青山执笔] : Inkwell Fan : «Путь Кисти и Скалы»
+* [粟子游尘] : Mortal Rope Dart : Шэнбяо эфемерности
+* [泥犁三垢] : Infernal Twinblades : Клинки скверн Нирайи
+* [明川药典] : Panacea Fan : Веер Ясного Потока
+* [千香引魂蛊] : Soulshade Umbrella : Крадущий душу зонт
+* [无名剑] : Nameless Sword : Безымянный меч
+* [嗟夫刀法] : Thundercry Blade : Модао сожалений
+* [八方风雷枪] : Srormbreaker Spear : Копьё ветра и грома
+* [积矩九剑] : Strategic Sword : Меч девяти приемов
+* [无名枪法] : Nameless Spear :  Безымянное копье
+* [九曲惊神枪] : Heavenquaker Spear : Копьё девяти изгибов
+* [九重春色] : Vernal Umbrella : Весенний зонт
+* [青山执笔] : Inkwell Fan : Веер росчерка зелёных гор
 
 ## Weapon
 
