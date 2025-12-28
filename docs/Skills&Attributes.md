@@ -1,9 +1,9 @@
 ## Атрибуты
 
-- [会意率] : Affinity Rate : Шанс Пробоя
-  [直接会意率] : Direct Affinity Rate : Базовый шанс Пробоя
-  [会意率提] : Increases Affinity Rate : Повышает Шанс Пробоя
-  [会意伤害] : Affinity Damage: Урон пробоя
+- [会意率] : Affinity Rate : Шанс резонанса
+  [直接会意率] : Direct Affinity Rate : Базовый шанс резонанса
+  [会意率提] : Increases Affinity Rate : Повышает Шанс резонанса
+  [会意伤害] : Affinity Damage: Урон резонанса
 - Critical Rate : Шанс крита
 - Physical DMG : физ. урона
 - Momentum : Импульс
