@@ -6,6 +6,7 @@
   * [会意伤害] : Affinity Damage: Урон резонанса
 * Critical Rate : Шанс крита
 * Physical DMG : физ. урона
+* Physical Attack : Физ. Атака
 * Momentum : Импульс
 * All Attribute DMG: все Атрибуты Урона (~)
 
@@ -103,6 +104,21 @@
 * Mystic Skills : Мистические искусства
 * [天工] : Divinecraft : Небесное Мастерство
   * [开物·火] : Divinecraft - Fire : Познание - Огня
+
+# Секты
+* Sectless : Без Секты
+* Nine Mortal Ways: Девять Смертных Путей
+* Well of Heaven : Колодец Небес
+* Silver Needle : Серебряная Игла
+* Midnight Blades | Midnight Bladez : Полуночные Клинки
+* The Inkbound Order : Чернильный Орден
+* Raging Tides : Яростные Приливы
+* Velvet Shade : Бархатные Тени
+* The Masked Troupe : Маскированная Труппа
+* Lone Cloud : Одинокое Облако
+* Northern Vow : Северная Клятва
+* [无心谷] : Hollow Vale : Долина Пустоты
+* [墨山道] : Mohist Hill : Холм Моистов
 
 ## Игры
 

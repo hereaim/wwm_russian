@@ -14,14 +14,15 @@ import re
 from pathlib import Path
 
 
-def validate_tsv(file_path: str) -> tuple[bool, list[str]]:
+def validate_tsv(file_path: str) -> tuple[bool, list[str], set[str]]:
     """
     Валидирует TSV файл.
     
     Returns:
-        tuple: (is_valid, list_of_errors)
+        tuple: (is_valid, list_of_errors, set_of_broken_ids)
     """
     errors = []
+    broken_ids = set()  # Множество ID сломанных строк
     file_path_obj = Path(file_path)
     
     if not file_path_obj.exists():
@@ -86,7 +87,7 @@ def validate_tsv(file_path: str) -> tuple[bool, list[str]]:
                 # Валидируем предыдущую запись
                 full_text = ''.join(current_entry_lines)
                 if entry_start_line:
-                    _validate_entry(errors, entry_start_line, full_text, id_pattern, current_id)
+                    _validate_entry(errors, entry_start_line, full_text, id_pattern, current_id, broken_ids)
             
             # Начинаем новую запись
             current_entry_lines = [original_line]
@@ -129,16 +130,18 @@ def validate_tsv(file_path: str) -> tuple[bool, list[str]]:
     if current_entry_lines:
         full_text = ''.join(current_entry_lines)
         if entry_start_line:
-            _validate_entry(errors, entry_start_line, full_text, id_pattern, current_id)
+            _validate_entry(errors, entry_start_line, full_text, id_pattern, current_id, broken_ids)
     
     # Фатальными считаем только сообщения, которые НЕ начинаются с ⚠ (предупреждения)
     has_fatal_errors = any(not err.lstrip().startswith('⚠') for err in errors)
     is_valid = not has_fatal_errors
-    return is_valid, errors
+    return is_valid, errors, broken_ids
 
 
-def _validate_entry(errors: list, start_line: int, full_text: str, id_pattern: re.Pattern, current_id: str = None):
+def _validate_entry(errors: list, start_line: int, full_text: str, id_pattern: re.Pattern, current_id: str = None, broken_ids: set = None):
     """Валидирует одну запись TSV."""
+    if broken_ids is None:
+        broken_ids = set()
     # Убираем последний перенос строки, если есть
     full_text = full_text.rstrip('\n\r')
     
@@ -152,6 +155,9 @@ def _validate_entry(errors: list, start_line: int, full_text: str, id_pattern: r
             f"Ожидается ID и текст, разделённые табуляцией. "
             f"Начало: '{full_text[:100]}'"
         )
+        # Если current_id валидный, добавляем его в broken_ids
+        if current_id and id_pattern.match(current_id):
+            broken_ids.add(current_id)
         return
     
     id_value, text = parts
@@ -165,6 +171,8 @@ def _validate_entry(errors: list, start_line: int, full_text: str, id_pattern: r
             f"❌ Строка {start_line}, ID: {display_id}: Неверный формат ID. "
             f"Ожидается 16 hex символов, получено: '{id_value}'"
         )
+        if display_id and id_pattern.match(display_id):
+            broken_ids.add(display_id)
     
     # Проверяем, что в тексте нет дополнительных табуляций
     # (табуляция должна быть только разделителем между ID и текстом)
@@ -175,6 +183,8 @@ def _validate_entry(errors: list, start_line: int, full_text: str, id_pattern: r
             f"Текст содержит {text.count(chr(9))} дополнительных табуляций. "
             f"Начало текста: '{text[:100]}'"
         )
+        if display_id and id_pattern.match(display_id):
+            broken_ids.add(display_id)
     
     # Проверяем, что текст не пустой
     if not text.strip():
@@ -201,12 +211,16 @@ def _validate_entry(errors: list, start_line: int, full_text: str, id_pattern: r
                 f"❌ Строка {start_line}, ID: {display_id}: Некорректное использование кавычек "
                 f'(открывающая кавычка без закрывающей). Начало текста: "{text[:100]}"'
             )
+            if display_id and id_pattern.match(display_id):
+                broken_ids.add(display_id)
         # Закрывающая без открывающей
         elif ends_with_quote and not starts_with_quote:
             errors.append(
                 f"❌ Строка {start_line}, ID: {display_id}: Некорректное использование кавычек "
                 f'(закрывающая кавычка без открывающей). Начало текста: "{text[:100]}"'
             )
+            if display_id and id_pattern.match(display_id):
+                broken_ids.add(display_id)
         # Текст выглядит как полностью "заключённый в кавычки" (как CSV-поле).
         # В этом случае любое нечётное количество кавычек — гарантированно поломанное поле,
         # которое может склеить строки/столбцы при импорте → считаем фатальной ошибкой.
@@ -216,6 +230,8 @@ def _validate_entry(errors: list, start_line: int, full_text: str, id_pattern: r
                 f"Поле начинается и заканчивается на \", но общее количество кавычек нечётное ({quote_count}), "
                 f"что ломает CSV/TSV-парсеры. Начало текста: \"{text[:100]}\""
             )
+            if display_id and id_pattern.match(display_id):
+                broken_ids.add(display_id)
         # Остальные случаи: кавычки где-то внутри, но не на границах поля.
         # Нечётное количество кавычек здесь подозрительно, но не всегда фатально → предупреждение.
         elif quote_count % 2 != 0:
@@ -223,6 +239,30 @@ def _validate_entry(errors: list, start_line: int, full_text: str, id_pattern: r
                 f"⚠️ Строка {start_line}, ID: {display_id}: Нечётное количество двойных кавычек ({quote_count}). "
                 f"Это может ломать TSV/CSV-конвертацию. Начало текста: \"{text[:100]}\""
             )
+        
+        # Проверка на двойные кавычки внутри текста, когда текст НЕ обернут в кавычки полностью.
+        # В TSV/CSV двойные кавычки внутри поля могут сломать парсинг, особенно последовательности "".
+        # Если текст не начинается И не заканчивается на кавычку, но содержит двойные кавычки внутри - это ошибка.
+        if not starts_with_quote and not ends_with_quote:
+            # Текст не обернут в кавычки, но содержит двойные кавычки внутри
+            # Проверяем наличие последовательностей "" (две кавычки подряд) - это особенно проблематично
+            if '""' in text:
+                errors.append(
+                    f"❌ Строка {start_line}, ID: {display_id}: Найдена последовательность двойных кавычек \"\" внутри текста. "
+                    f"В TSV/CSV это может сломать парсинг, так как \"\" интерпретируется как экранированная кавычка. "
+                    f"Текст не обернут в кавычки полностью. Начало текста: \"{text[:100]}\""
+                )
+                if display_id and id_pattern.match(display_id):
+                    broken_ids.add(display_id)
+            # Также проверяем одиночные кавычки внутри текста (когда текст не обернут в кавычки)
+            elif quote_count > 0:
+                errors.append(
+                    f"❌ Строка {start_line}, ID: {display_id}: Найдены двойные кавычки внутри текста ({quote_count} шт.). "
+                    f"В TSV/CSV двойные кавычки внутри поля могут сломать парсинг, если поле не обернуто в кавычки полностью. "
+                    f"Начало текста: \"{text[:100]}\""
+                )
+                if display_id and id_pattern.match(display_id):
+                    broken_ids.add(display_id)
 
 
 def main():
@@ -237,7 +277,7 @@ def main():
         sys.exit(1)
     
     file_path = sys.argv[1]
-    is_valid, errors = validate_tsv(file_path)
+    is_valid, errors, broken_ids = validate_tsv(file_path)
     
     fatal_errors = [e for e in errors if not e.lstrip().startswith('⚠')]
     warnings = [e for e in errors if e.lstrip().startswith('⚠')]
@@ -251,6 +291,12 @@ def main():
         print(f"\n❌ Найдено ошибок: {len(fatal_errors)}")
         if warnings:
             print(f"⚠️ Найдено предупреждений: {len(warnings)}")
+        # Выводим ID сломанных строк в специальном формате для парсинга GUI
+        if broken_ids:
+            print(f"\n🔧 BROKEN_IDS_START")
+            for broken_id in sorted(broken_ids):
+                print(broken_id)
+            print(f"🔧 BROKEN_IDS_END")
         sys.exit(1)
     elif warnings:
         print(f"\n⚠️ Найдено предупреждений: {len(warnings)}")

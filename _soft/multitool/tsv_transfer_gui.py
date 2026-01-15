@@ -4,16 +4,26 @@ import csv
 import re
 import subprocess
 import random
+from collections import Counter
 
 from PyQt5 import QtWidgets, QtCore
 from PyQt5.QtGui import QTextCursor
+
+# Увеличиваем лимит размера поля CSV для обработки больших текстовых полей
+# Устанавливаем большое значение (100MB) для поддержки очень больших полей
+# Если sys.maxsize слишком большой, используем фиксированное значение
+try:
+    csv.field_size_limit(sys.maxsize)
+except OverflowError:
+    # Если sys.maxsize слишком большой, используем 100MB
+    csv.field_size_limit(100 * 1024 * 1024)
 
 
 class ValidatorThread(QtCore.QThread):
     """Фоновый поток для запуска внешних валидаторов без подвисания GUI."""
 
     log_signal = QtCore.pyqtSignal(str)
-    finished_signal = QtCore.pyqtSignal(int, str)  # returncode, description
+    finished_signal = QtCore.pyqtSignal(int, str, str)  # returncode, description, output
 
     def __init__(self, script_path: str, args: list[str] | None, description: str):
         super().__init__()
@@ -22,6 +32,7 @@ class ValidatorThread(QtCore.QThread):
         self.description = description
 
     def run(self):
+        output_lines = []
         try:
             cmd = [sys.executable, self.script_path] + self.args
             self.log_signal.emit(f"=== {self.description} ===")
@@ -39,15 +50,20 @@ class ValidatorThread(QtCore.QThread):
 
             if proc.stdout is not None:
                 for line in proc.stdout:
-                    self.log_signal.emit(line.rstrip("\n\r"))
+                    line_stripped = line.rstrip("\n\r")
+                    self.log_signal.emit(line_stripped)
+                    output_lines.append(line_stripped)
 
             proc.wait()
             returncode = proc.returncode
         except Exception as e:
-            self.log_signal.emit(f"Ошибка запуска валидатора {self.description}: {e}")
+            error_msg = f"Ошибка запуска валидатора {self.description}: {e}"
+            self.log_signal.emit(error_msg)
+            output_lines.append(error_msg)
             returncode = -1
 
-        self.finished_signal.emit(returncode, self.description)
+        output = "\n".join(output_lines)
+        self.finished_signal.emit(returncode, self.description, output)
 
 
 def load_tsv(path):
@@ -99,6 +115,168 @@ def has_broken_param_ru_underscore(text):
     например: 'А_Б', 'ру_тест' и т.п.
     """
     return bool(re.search(r'[А-Яа-яЁё]+_[А-Яа-яЁё]+', text or ""))
+
+
+def extract_tags(text):
+    """
+    Извлекает теги из текста: %s, $s, T(, #E, $link, %d, $N
+    Игнорирует теги #Y (цвет), но учитывает #E как тег.
+    Возвращает список найденных тегов.
+    """
+    if not text:
+        return []
+    
+    tags = []
+    
+    # Удаляем только #Y (цвет) перед подсчетом, но оставляем #E
+    text_clean = text
+    
+    # Ищем все теги
+    # %s, %d
+    tags.extend(re.findall(r'%[sd]', text_clean))
+    # #h добавь так же
+    tags.extend(re.findall(r'#h', text_clean))
+    
+    # $link (отдельный тег, ищем первым, чтобы исключить его из $s)
+    link_matches = re.findall(r'\$link', text_clean)
+    tags.extend(link_matches)
+    
+    # $s (но не те, что уже в $link)
+    # Удаляем $link из текста перед поиском $s
+    text_for_s = re.sub(r'\$link', '', text_clean)
+    s_matches = re.findall(r'\$s', text_for_s)
+    tags.extend(s_matches)
+    
+    # $N
+    tags.extend(re.findall(r'\$N', text_clean))
+    
+    # T(
+    tags.extend(re.findall(r'\$T\(', text_clean))
+    # #E (ищем как тег)
+    # tags.extend(re.findall(r'#E', text_clean))
+    
+    return tags
+
+
+def count_braces(text):
+    """
+    Подсчитывает количество открывающих { и закрывающих } скобок.
+    Возвращает (count_open, count_close).
+    """
+    if not text:
+        return (0, 0)
+    count_open = text.count('{')
+    count_close = text.count('}')
+    return (count_open, count_close)
+
+
+def find_tag_differences(path_a, path_b):
+    """
+    Находит различия в тегах между файлами A и B.
+    Проверяет наличие тегов: %s, $s, T(, #E, $link, %d
+    Проверяет количество фигурных скобок { и }.
+    Возвращает список строк (ID, текст_A, текст_B, проблема) с проблемными записями.
+    """
+    if not os.path.isfile(path_a):
+        raise FileNotFoundError(f"Файл A не найден: {path_a}")
+    if not os.path.isfile(path_b):
+        raise FileNotFoundError(f"Файл B не найден: {path_b}")
+
+    header_a, rows_a = load_tsv(path_a)
+    header_b, rows_b = load_tsv(path_b)
+
+    id_idx_a = find_column_index(header_a, 'ID', 0)
+    id_idx_b = find_column_index(header_b, 'ID', 0)
+    text_idx_a = find_column_index(header_a, 'OriginalText', 1 if len(header_a) > 1 else 0)
+    text_idx_b = find_column_index(header_b, 'OriginalText', 1 if len(header_b) > 1 else 0)
+
+    # Создаем словарь ID -> текст для файла A
+    map_a = {}
+    for row in rows_a:
+        if len(row) > max(id_idx_a, text_idx_a):
+            row_id = row[id_idx_a]
+            text_a = row[text_idx_a] if len(row) > text_idx_a else ''
+            if row_id:
+                map_a[row_id] = text_a
+
+    problems = []
+
+    for row in rows_b:
+        if len(row) <= max(id_idx_b, text_idx_b):
+            continue
+        
+        row_id = row[id_idx_b]
+        text_b = row[text_idx_b] if len(row) > text_idx_b else ''
+        
+        if not row_id or row_id not in map_a:
+            continue
+        
+        text_a = map_a[row_id]
+        
+        # Извлекаем теги из обоих текстов
+        tags_a = extract_tags(text_a)
+        tags_b = extract_tags(text_b)
+        
+        # Подсчитываем теги
+        tags_count_a = Counter(tags_a)
+        tags_count_b = Counter(tags_b)
+        
+        # Проверяем различия в тегах
+        issues = []
+        
+        # Проверяем каждый тип тега
+        for tag in tags_count_a:
+            count_a = tags_count_a[tag]
+            count_b = tags_count_b.get(tag, 0)
+            if count_b < count_a:
+                issues.append(f"Не хватает тега '{tag}': в A={count_a}, в B={count_b}")
+        
+        # Проверяем фигурные скобки
+        braces_a = count_braces(text_a)
+        braces_b = count_braces(text_b)
+        
+        if braces_a[0] != braces_b[0] or braces_a[1] != braces_b[1]:
+            issues.append(
+                f"Несоответствие фигурных скобок: "
+                f"в A {{={braces_a[0]}, }}={braces_a[1]}, "
+                f"в B {{={braces_b[0]}, }}={braces_b[1]}"
+            )
+        
+        if issues:
+            problems.append({
+                'id': row_id,
+                'text_a': text_a,
+                'text_b': text_b,
+                'issues': issues
+            })
+    
+    return problems
+
+
+def create_fixed_tsv(path_b, problems, output_path):
+    """
+    Создает файл _fixed.tsv из файла B с проблемными строками.
+    """
+    if not os.path.isfile(path_b):
+        raise FileNotFoundError(f"Файл B не найден: {path_b}")
+    
+    header_b, rows_b = load_tsv(path_b)
+    id_idx_b = find_column_index(header_b, 'ID', 0)
+    
+    # Создаем множество ID с проблемами
+    problem_ids = {p['id'] for p in problems}
+    
+    # Фильтруем строки с проблемными ID
+    fixed_rows = []
+    for row in rows_b:
+        if len(row) > id_idx_b:
+            row_id = row[id_idx_b]
+            if row_id in problem_ids:
+                fixed_rows.append(row)
+    
+    # Сохраняем в файл
+    save_tsv(output_path, header_b, fixed_rows)
+    return len(fixed_rows)
 
 
 def transfer_new_ids(path_a, path_b):
@@ -207,7 +385,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("TSV перенос ID и удаление дублей (PyQt5)")
+        self.setWindowTitle("TSV мультитул v0.0.2")
         self.resize(700, 300)
 
         central = QtWidgets.QWidget()
@@ -267,10 +445,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_find_broken_params = QtWidgets.QPushButton("6. Сломанные параметры (RU_RU с _)")
         self.btn_find_broken_params.clicked.connect(self.handle_find_broken_params)
 
+        self.btn_find_tag_differences = QtWidgets.QPushButton("7. Поиск различий тегов (A vs B)")
+        self.btn_find_tag_differences.clicked.connect(self.handle_find_tag_differences)
+
         validate_layout.addWidget(self.btn_validate_tsv)
         validate_layout.addWidget(self.btn_find_cn)
         validate_layout.addWidget(self.btn_validate_tags)
         validate_layout.addWidget(self.btn_find_broken_params)
+        validate_layout.addWidget(self.btn_find_tag_differences)
 
         layout.addLayout(validate_layout)
 
@@ -512,12 +694,21 @@ class MainWindow(QtWidgets.QMainWindow):
 
             new_rows = []
             replaced = 0
+            changed_indices = []  # Индексы строк, которые действительно изменились
 
-            for row in rows_b:
+            for idx, row in enumerate(rows_b):
                 if len(row) > id_idx_b:
                     rid = row[id_idx_b]
                     if rid in map_a:
-                        new_rows.append(normalize_row(map_a[rid]))
+                        old_row_normalized = normalize_row(row)
+                        new_row_normalized = normalize_row(map_a[rid])
+                        
+                        # Сравниваем старую и новую строки
+                        if old_row_normalized != new_row_normalized:
+                            # Строка действительно изменилась
+                            changed_indices.append(idx)
+                        
+                        new_rows.append(new_row_normalized)
                         replaced += 1
                         continue
                 new_rows.append(row)
@@ -543,6 +734,47 @@ class MainWindow(QtWidgets.QMainWindow):
             if reply != QtWidgets.QMessageBox.Yes:
                 self.append_log("Замена полей отменена пользователем.")
                 return
+
+            # Предлагаем переместить только те строки, которые действительно изменились
+            if changed_indices:
+                changed_count = len(changed_indices)
+                unchanged_count = replaced - changed_count
+                
+                move_msg = (
+                    f"Заменено строк: {replaced}.\n"
+                    f"Из них изменились: {changed_count}.\n"
+                    f"Не изменились: {unchanged_count}.\n\n"
+                    f"Хотите переместить измененные строки ({changed_count}) в конец файла?\n"
+                    f"Если нет, они останутся на своих местах."
+                )
+                
+                move_reply = QtWidgets.QMessageBox.question(
+                    self,
+                    "Перемещение измененных строк",
+                    move_msg,
+                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                    QtWidgets.QMessageBox.No,
+                )
+
+                if move_reply == QtWidgets.QMessageBox.Yes:
+                    # Разделяем на две группы: не измененные и измененные
+                    changed_set = set(changed_indices)
+                    kept_rows = []
+                    changed_rows = []
+                    
+                    for idx, row in enumerate(new_rows):
+                        if idx in changed_set:
+                            changed_rows.append(row)
+                        else:
+                            kept_rows.append(row)
+                    
+                    # Собираем: сначала не измененные, потом измененные
+                    new_rows = kept_rows + changed_rows
+                    move_msg = f"Измененные строки ({changed_count}) перемещены в конец файла."
+                    self.append_log(move_msg)
+            else:
+                # Все замененные строки остались такими же
+                self.append_log(f"Все замененные строки ({replaced}) остались без изменений. Перемещение не требуется.")
 
             save_tsv(path_b, header_b, new_rows)
             msg = f"Замена завершена. Обновлено строк: {replaced}."
@@ -591,7 +823,7 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.critical(self, "Ошибка валидатора", str(e))
             self.append_log(f"Ошибка запуска валидатора {description or script_relative_path}: {e}")
 
-    def on_validator_finished(self, returncode: int, description: str):
+    def on_validator_finished(self, returncode: int, description: str, output: str):
         if returncode == 0:
             QtWidgets.QMessageBox.information(
                 self,
@@ -599,11 +831,120 @@ class MainWindow(QtWidgets.QMainWindow):
                 f"{description} завершился успешно (код 0).",
             )
         else:
-            QtWidgets.QMessageBox.warning(
-                self,
-                "Валидатор",
-                f"{description} завершился с кодом {returncode}. Подробности см. в логе.",
+            # Парсим вывод для извлечения ID сломанных строк (только для validate_tsv.py)
+            broken_ids = []
+            is_tsv_validator = "validate_tsv.py" in description or "Проверка TSV" in description
+            
+            if is_tsv_validator:
+                broken_ids = self._parse_broken_ids_from_output(output)
+            
+            if broken_ids:
+                # Предлагаем удалить сломанные строки
+                ids_preview = "\n".join(sorted(broken_ids)[:10])
+                if len(broken_ids) > 10:
+                    ids_preview += f"\n... и ещё {len(broken_ids) - 10}"
+                
+                reply = QtWidgets.QMessageBox.question(
+                    self,
+                    "Сломанные строки",
+                    (
+                        f"Найдено {len(broken_ids)} сломанных строк с ошибками.\n\n"
+                        f"Удалить эти строки из файла B?\n\n"
+                        f"ID сломанных строк:\n{ids_preview}"
+                    ),
+                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                    QtWidgets.QMessageBox.No,
+                )
+                
+                if reply == QtWidgets.QMessageBox.Yes:
+                    self._remove_broken_lines_by_ids(broken_ids)
+                else:
+                    # Показываем стандартное предупреждение, если пользователь отказался
+                    QtWidgets.QMessageBox.warning(
+                        self,
+                        "Валидатор",
+                        f"{description} завершился с кодом {returncode}. Подробности см. в логе.",
+                    )
+            else:
+                # Нет сломанных строк для удаления, показываем стандартное предупреждение
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Валидатор",
+                    f"{description} завершился с кодом {returncode}. Подробности см. в логе.",
+                )
+    
+    def _parse_broken_ids_from_output(self, output: str) -> list[str]:
+        """Извлекает ID сломанных строк из вывода валидатора."""
+        broken_ids = []
+        lines = output.split('\n')
+        in_broken_section = False
+        
+        for line in lines:
+            line = line.strip()
+            if line == "🔧 BROKEN_IDS_START":
+                in_broken_section = True
+                continue
+            elif line == "🔧 BROKEN_IDS_END":
+                break
+            elif in_broken_section and line:
+                # Проверяем, что это валидный ID (16 hex символов)
+                if len(line) == 16 and all(c in '0123456789abcdefABCDEF' for c in line):
+                    broken_ids.append(line)
+        
+        return broken_ids
+    
+    def _remove_broken_lines_by_ids(self, broken_ids: list[str]):
+        """Удаляет строки с указанными ID из файла B."""
+        path_b = self.edit_b.text().strip()
+        
+        if not path_b:
+            QtWidgets.QMessageBox.warning(self, "Ошибка", "Укажите путь к файлу B.")
+            return
+        
+        if not os.path.isfile(path_b):
+            QtWidgets.QMessageBox.warning(self, "Ошибка", f"Файл B не найден: {path_b}")
+            return
+        
+        try:
+            header_b, rows_b = load_tsv(path_b)
+            if not rows_b:
+                QtWidgets.QMessageBox.information(self, "Результат", "Файл B пуст или без данных.")
+                return
+            
+            id_idx = find_column_index(header_b, 'ID', 0)
+            broken_set = set(broken_ids)
+            
+            original_count = len(rows_b)
+            kept_rows = []
+            removed_count = 0
+            
+            for row in rows_b:
+                if len(row) > id_idx:
+                    row_id = row[id_idx]
+                    if row_id in broken_set:
+                        removed_count += 1
+                        continue
+                kept_rows.append(row)
+            
+            if removed_count == 0:
+                QtWidgets.QMessageBox.information(
+                    self, 
+                    "Удаление", 
+                    "Не найдено строк с указанными ID для удаления."
+                )
+                return
+            
+            save_tsv(path_b, header_b, kept_rows)
+            msg = (
+                f"Удаление сломанных строк завершено.\n"
+                f"Удалено строк: {removed_count} из {original_count}.\n"
+                f"Осталось строк: {len(kept_rows)}."
             )
+            QtWidgets.QMessageBox.information(self, "Удаление строк", msg)
+            self.append_log(f"Удалено сломанных строк: {removed_count}")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Ошибка", str(e))
+            self.append_log(f"Ошибка удаления сломанных строк: {e}")
 
     def handle_validate_tsv(self):
         path_b = self.edit_b.text().strip()
@@ -809,6 +1150,70 @@ class MainWindow(QtWidgets.QMainWindow):
         except Exception as e:
             QtWidgets.QMessageBox.critical(self, "Ошибка", str(e))
             self.append_log(f"Ошибка поиска сломанных параметров: {e}")
+
+    def handle_find_tag_differences(self):
+        """
+        Поиск различий тегов между файлами A и B.
+        Проверяет наличие тегов: %s, $s, T(, #E, $link, %d
+        Проверяет количество фигурных скобок { и }.
+        Создает файл _fixed.tsv с проблемными строками.
+        """
+        path_a = self.edit_a.text().strip()
+        path_b = self.edit_b.text().strip()
+
+        if not path_a or not path_b:
+            QtWidgets.QMessageBox.warning(self, "Ошибка", "Укажите пути к файлам A и B.")
+            return
+        if not os.path.isfile(path_a):
+            QtWidgets.QMessageBox.warning(self, "Ошибка", f"Файл A не найден: {path_a}")
+            return
+        if not os.path.isfile(path_b):
+            QtWidgets.QMessageBox.warning(self, "Ошибка", f"Файл B не найден: {path_b}")
+            return
+
+        try:
+            self.append_log("=== Поиск различий тегов между A и B ===")
+            problems = find_tag_differences(path_a, path_b)
+
+            if not problems:
+                msg = "Различий в тегах между файлами A и B не найдено."
+                QtWidgets.QMessageBox.information(self, "Различия тегов", msg)
+                self.append_log(msg)
+                return
+
+            msg = (
+                f"Найдено строк с различиями в тегах: {len(problems)}. "
+                f"Детали выведены ниже."
+            )
+            self.append_log(msg)
+
+            # Выводим детали проблем
+            for p in problems:
+                self.append_log(f"\nID: {p['id']}")
+                self.append_log(f"  A: {p['text_a'][:100]}{'...' if len(p['text_a']) > 100 else ''}")
+                self.append_log(f"  B: {p['text_b'][:100]}{'...' if len(p['text_b']) > 100 else ''}")
+                for issue in p['issues']:
+                    self.append_log(f"  ⚠ {issue}")
+
+            # Создаем файл _fixed.tsv
+            b_dir = os.path.dirname(path_b)
+            b_name = os.path.basename(path_b)
+            b_name_no_ext = os.path.splitext(b_name)[0]
+            output_path = os.path.join(b_dir, f"{b_name_no_ext}_fixed.tsv")
+
+            fixed_count = create_fixed_tsv(path_b, problems, output_path)
+
+            result_msg = (
+                f"Найдено проблемных строк: {len(problems)}.\n"
+                f"Создан файл: {output_path}\n"
+                f"Строк в файле: {fixed_count}."
+            )
+
+            QtWidgets.QMessageBox.information(self, "Различия тегов", result_msg)
+            self.append_log(f"\n{result_msg}")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Ошибка", str(e))
+            self.append_log(f"Ошибка поиска различий тегов: {e}")
 
     # --- Операции по фрагменту текста в файле B ---
 
